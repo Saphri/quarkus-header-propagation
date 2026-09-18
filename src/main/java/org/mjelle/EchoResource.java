@@ -1,5 +1,7 @@
 package org.mjelle;
 
+import org.jboss.logging.Logger;
+
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
@@ -15,12 +17,16 @@ import jakarta.ws.rs.core.MediaType;
 @Path("/downstream")
 public class EchoResource {
 
+    private final Logger log = Logger.getLogger(EchoResource.class);
+
     @GET
     @Path("/echo")
     @Produces(MediaType.TEXT_PLAIN)
     public String echo(
             @HeaderParam("x-request-id") String requestId,
             @QueryParam("name") String name) {
+        log.infof("startFlow: requestId=%s, name=%s, callerThread=%s",
+                requestId, name, Thread.currentThread().getName());
         return "requestId=" + (requestId == null ? "<none>" : requestId)
                 + ", name=" + (name == null ? "<none>" : name);
     }

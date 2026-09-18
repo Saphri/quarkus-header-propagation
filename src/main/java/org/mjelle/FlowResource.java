@@ -10,6 +10,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
 
 /**
  * Demonstrates propagating the {@code x-request-id} header to a REST client call that is
@@ -17,6 +18,8 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
  */
 @Path("/flow")
 public class FlowResource {
+
+    private final Logger log = Logger.getLogger(FlowResource.class);
 
     @Inject
     @RestClient
@@ -33,6 +36,8 @@ public class FlowResource {
     public Uni<String> startFlow(
             @HeaderParam("x-request-id") String requestId,
             @QueryParam("name") String name) {
+        log.infof("startFlow: requestId=%s, name=%s, callerThread=%s",
+                requestId, name, Thread.currentThread().getName());
         // item(name) -> emitOn(default executor) -> map(...): the REST client call inside map()
         // runs on Mutiny's default executor, and x-request-id is propagated to it automatically.
         return Uni.createFrom().item(name)
