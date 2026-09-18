@@ -59,16 +59,35 @@ If you want to learn more about building native executables, please consult <htt
 - REST Client ([guide](https://quarkus.io/guides/rest-client)): Type-safe HTTP client for consuming REST APIs using MicroProfile REST Client
 - SmallRye Context Propagation ([guide](https://quarkus.io/guides/context-propagation)): Propagate contexts between managed threads in reactive applications
 
-## Provided Code
+## Endpoints
 
-### REST Client
+### `GET /flow/start?name=<name>`
 
-Invoke different services through REST with JSON
+Starts a reactive flow. The incoming `x-request-id` header is propagated to a downstream
+REST client call that runs **off the request thread**, on Mutiny's default executor (via
+`emitOn`). The response reports which thread made the call and what the downstream service
+echoed back (including the propagated `x-request-id`).
 
-[Related guide section...](https://quarkus.io/guides/rest-client)
+```shell script
+curl -H "x-request-id: req-123" "http://localhost:8080/flow/start?name=quarkus"
+# callerThread=executor-thread-1, downstream=[requestId=req-123, name=quarkus]
+```
 
-### REST
+> The header is propagated automatically by MicroProfile REST Client header propagation
+> (`@RegisterClientHeaders` + `org.eclipse.microprofile.rest.client.propagateHeaders=x-request-id`).
+> It survives the move off the request thread because Mutiny's default executor participates
+> in context propagation.
 
-Easily start your REST Web Services
+### `GET /flow/hello?message=<message>`
 
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+Accepts the `x-request-id` header and a message, returning `hello world`.
+
+```shell script
+curl -H "x-request-id: req-456" "http://localhost:8080/flow/hello?message=there"
+# hello world
+```
+
+### `GET /downstream/echo?name=<name>`
+
+Local downstream service used to verify propagation; echoes back the `x-request-id` header
+and `name` it received.

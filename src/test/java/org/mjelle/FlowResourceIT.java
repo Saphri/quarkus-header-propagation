@@ -3,6 +3,6 @@ package org.mjelle;
 import io.quarkus.test.junit.QuarkusIntegrationTest;
 
 @QuarkusIntegrationTest
-class GreetingResourceIT extends GreetingResourceTest {
+class FlowResourceIT extends FlowResourceTest {
     // Execute the same tests but in packaged mode.
 }
