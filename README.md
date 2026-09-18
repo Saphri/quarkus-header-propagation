@@ -1,8 +1,14 @@
 # quarkus-header-propagation
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+A proof of concept for **seamless `x-request-id` propagation across threads and async HTTP calls** on Quarkus.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+The request id travels end-to-end without being threaded through every method signature:
+
+- **Across thread boundaries** — the downstream REST client call runs off the request thread on a MicroProfile Context Propagation `ManagedExecutor` (`runSubscriptionOn`), yet the header still reaches it.
+- **Through async HTTP requests** — both the REST client and the downstream resource return `Uni`, so propagation works through reactive calls, not just blocking ones.
+- **Log correlation** — the id is stored in the MDC, so it shows up as `<req-...>` on every log line, on every thread.
+
+Built with Quarkus (REST + REST Client). Learn more at <https://quarkus.io/>.
 
 ## Running the application in dev mode
 
@@ -62,29 +68,22 @@ If you want to learn more about building native executables, please consult <htt
 
 ### `GET /flow/start?name=<name>`
 
-Starts a reactive flow. The incoming `x-request-id` header is propagated to a downstream
-REST client call that runs **off the request thread**, on Mutiny's default executor (via
-`emitOn`). The response reports which thread made the call and what the downstream service
-echoed back (including the propagated `x-request-id`).
+Starts a reactive flow. The incoming `x-request-id` header is propagated to an asynchronous
+downstream REST client call that runs **off the request thread**, on a MicroProfile Context
+Propagation `ManagedExecutor` (via `runSubscriptionOn` in `EchoInvoker`). The id is also stored
+in the MDC, so it appears as `<req-...>` in every log line. The response reports the caller
+thread and what the downstream service echoed back (including the propagated `x-request-id`).
 
 ```shell script
 curl -H "x-request-id: req-123" "http://localhost:8080/flow/start?name=quarkus"
-# callerThread=executor-thread-1, downstream=[requestId=req-123, name=quarkus]
+# callerThread=vert.x-eventloop-thread-1, downstream=[requestId=req-123, name=quarkus]
 ```
 
 > The header is propagated automatically by MicroProfile REST Client header propagation
 > (`@RegisterClientHeaders` + `org.eclipse.microprofile.rest.client.propagateHeaders=x-request-id`).
-> It survives the move off the request thread because Mutiny's default executor participates
-> in context propagation.
-
-### `GET /flow/hello?message=<message>`
-
-Accepts the `x-request-id` header and a message, returning `hello world`.
-
-```shell script
-curl -H "x-request-id: req-456" "http://localhost:8080/flow/hello?message=there"
-# hello world
-```
+> It survives the move off the request thread because the call runs on a MicroProfile Context
+> Propagation `ManagedExecutor`, which carries the request context. The MDC entry also keeps the
+> id visible in logs across threads.
 
 ### `GET /downstream/echo?name=<name>`
 

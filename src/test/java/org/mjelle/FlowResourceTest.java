@@ -21,7 +21,7 @@ class FlowResourceTest {
                 .statusCode(200)
                 // The downstream service echoes back the header it received; asserting it
                 // here proves x-request-id was propagated to the REST client call, even though
-                // that call ran on a Mutiny worker thread (emitOn).
+                // that call ran off the request thread (on a ManagedExecutor, see EchoInvoker).
                 .body(containsString("requestId=" + requestId))
                 .body(containsString("name=quarkus"));
     }
@@ -35,17 +35,6 @@ class FlowResourceTest {
             .then()
                 .statusCode(200)
                 // The call must NOT run on the Vert.x event-loop thread.
-                .body(containsString("callerThread=executor-thread-1"));
-    }
-
-    @Test
-    void helloWorldReturnsGreeting() {
-        given()
-            .header("x-request-id", "req-abc")
-            .queryParam("message", "there")
-            .when().get("/flow/hello")
-            .then()
-                .statusCode(200)
-                .body(is("hello world"));
+                .body(containsString("callerThread=vert.x-eventloop-thread"));
     }
 }

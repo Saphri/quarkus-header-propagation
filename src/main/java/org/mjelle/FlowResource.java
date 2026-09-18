@@ -1,7 +1,6 @@
 package org.mjelle;
 
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
@@ -9,12 +8,15 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
+
 import org.jboss.logging.Logger;
+import org.jboss.logging.MDC;
 
 /**
- * Demonstrates propagating the {@code x-request-id} header to a REST client call that is
- * executed off the request thread, on Mutiny's default executor (switched via {@code emitOn}).
+ * Demonstrates propagating the {@code x-request-id} header to an asynchronous REST client
+ * call that runs off the request thread. The id is also stored in the MDC for log correlation,
+ * and the call itself is delegated to {@link EchoInvoker}, which executes it on a
+ * context-propagating {@code ManagedExecutor}.
  */
 @Path("/flow")
 public class FlowResource {
@@ -22,13 +24,13 @@ public class FlowResource {
     private final Logger log = Logger.getLogger(FlowResource.class);
 
     @Inject
-    @RestClient
-    EchoClient echoClient;
+    EchoInvoker echoInvoker;
 
     /**
-     * Starts a reactive flow: the REST client call is made inside the {@code map} step, which
-     * runs on Mutiny's default executor after {@code emitOn}. The incoming {@code x-request-id}
-     * header is propagated to that client call automatically (see {@link EchoClient}).
+     * Starts a reactive flow: puts the request id in the MDC for log correlation, then delegates
+     * to {@link EchoInvoker#invokeEcho(String)}, which performs the asynchronous REST client call
+     * off the request thread. The {@code x-request-id} header is propagated to that call
+     * automatically (see {@link EchoClient}).
      */
     @GET
     @Path("/start")
@@ -36,25 +38,17 @@ public class FlowResource {
     public Uni<String> startFlow(
             @HeaderParam("x-request-id") String requestId,
             @QueryParam("name") String name) {
-        log.infof("startFlow: requestId=%s, name=%s, callerThread=%s",
-                requestId, name, Thread.currentThread().getName());
-        // item(name) -> emitOn(default executor) -> map(...): the REST client call inside map()
-        // runs on Mutiny's default executor, and x-request-id is propagated to it automatically.
-        return Uni.createFrom().item(name)
-                .emitOn(Infrastructure.getDefaultExecutor())
-                .map(n -> "callerThread=" + Thread.currentThread().getName()
-                        + ", downstream=[" + echoClient.echo(n) + "]");
-    }
-
-    /**
-     * Simple greeting endpoint that accepts the {@code x-request-id} header and a message.
-     */
-    @GET
-    @Path("/hello")
-    @Produces(MediaType.TEXT_PLAIN)
-    public String hello(
-            @HeaderParam("x-request-id") String requestId,
-            @QueryParam("message") String message) {
-        return "hello world";
+        // item(requestId) -> MDC.put + log -> replaceWith(name) -> flatMap(echoInvoker.invokeEcho)
+        // -> log -> map(response). The REST client call happens inside EchoInvoker on a
+        // ManagedExecutor thread; x-request-id is propagated to it automatically (see EchoClient).
+        return Uni.createFrom().item(requestId)
+                .invoke(ri -> MDC.put("x-request-id", ri))
+                .invoke(ri -> log.infof("startFlow: requestId=%s",
+                        ri))
+                .replaceWith(name)
+                .flatMap(n -> echoInvoker.invokeEcho(n))
+                .invoke(p -> log.infof("%s: returned: %s", requestId, p))
+                .map(p -> "callerThread=" + Thread.currentThread().getName()
+                        + ", downstream=[" + p + "]");
     }
 }
