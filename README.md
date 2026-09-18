@@ -57,7 +57,6 @@ If you want to learn more about building native executables, please consult <htt
 
 - REST ([guide](https://quarkus.io/guides/rest)): Build RESTful web services and APIs using Jakarta REST (formerly JAX-RS)
 - REST Client ([guide](https://quarkus.io/guides/rest-client)): Type-safe HTTP client for consuming REST APIs using MicroProfile REST Client
-- SmallRye Context Propagation ([guide](https://quarkus.io/guides/context-propagation)): Propagate contexts between managed threads in reactive applications
 
 ## Endpoints
 
